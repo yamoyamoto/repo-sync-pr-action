@@ -10,6 +10,10 @@ inputs:
   token:
     description: "A GitHub token with repo and workflow scopes for the target repository."
     required: true
+  skip_checkout:
+    description: "Skip internal checkout and use current working directory."
+    required: false
+    default: "false"
   pr_base_branch:
     description: "The base branch for the pull request in the target repository."
     required: false
@@ -34,6 +38,7 @@ runs:
   using: "composite"
   steps:
     - name: Checkout source
+      if: ${{ inputs.skip_checkout != 'true' }}
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
@@ -60,9 +65,9 @@ runs:
 
     - name: Push to Target Repository
       shell: bash
-      env:
-        SOURCE_BRANCH: ${{ github.ref_name }}
       run: |
+        set -euo pipefail
+        SOURCE_BRANCH="${SOURCE_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
         SYNC_BRANCH="sync/source-${SOURCE_BRANCH}"
         echo "::set-output name=sync_branch::${SYNC_BRANCH}"
 
