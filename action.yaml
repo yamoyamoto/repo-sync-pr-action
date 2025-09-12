@@ -118,6 +118,16 @@ runs:
         TARGET_OWNER="${TARGET_REPO%%/*}"
         HEAD_BRANCH="${SYNC_BRANCH}"
 
+        # Skip if no diff and no existing PR
+        AHEAD_BY=$(gh api -X GET "repos/${TARGET_REPO}/compare/${PR_BASE_BRANCH}...${HEAD_BRANCH}" -q .ahead_by || echo "")
+        if [ "${AHEAD_BY:-0}" = "0" ]; then
+          PR_NUMBER=$(gh pr list --repo "$TARGET_REPO" --head "$HEAD_BRANCH" --json number --jq '.[0].number' || true)
+          if [ -z "${PR_NUMBER:-}" ]; then
+            echo "No diff between ${PR_BASE_BRANCH} and ${HEAD_BRANCH}. Skipping PR creation."
+            exit 0
+          fi
+        fi
+
         # Build args for creation (supports --head/--label/--assignee)
         declare -a pr_create_args
         pr_create_args+=(--base "$PR_BASE_BRANCH")
@@ -149,7 +159,7 @@ runs:
         if ! gh pr create --repo "$TARGET_REPO" "${pr_create_args[@]}"; then
           PR_NUMBER=$(gh pr list --repo "$TARGET_REPO" --head "$HEAD_BRANCH" --json number --jq '.[0].number' || true)
           if [ -z "${PR_NUMBER:-}" ]; then
-            echo "No existing PR found for head $HEAD_SPEC; aborting edit." >&2
+            echo "No existing PR found for head $HEAD_BRANCH; aborting edit." >&2
             exit 1
           fi
           gh pr edit --repo "$TARGET_REPO" "$PR_NUMBER" "${pr_edit_args[@]}"
