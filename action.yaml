@@ -116,12 +116,12 @@ runs:
           git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git"
 
         TARGET_OWNER="${TARGET_REPO%%/*}"
-        HEAD_SPEC="${TARGET_OWNER}:${SYNC_BRANCH}"
+        HEAD_BRANCH="${SYNC_BRANCH}"
 
         # Build args for creation (supports --head/--label/--assignee)
         declare -a pr_create_args
         pr_create_args+=(--base "$PR_BASE_BRANCH")
-        pr_create_args+=(--head "$HEAD_SPEC")
+        pr_create_args+=(--head "$HEAD_BRANCH")
         pr_create_args+=(--title "$PR_TITLE")
         pr_create_args+=(--body "$PR_BODY")
         if [ -n "$PR_ASSIGNEE" ]; then
@@ -147,7 +147,7 @@ runs:
 
         # Try create; on failure, resolve PR by head and edit it
         if ! gh pr create --repo "$TARGET_REPO" "${pr_create_args[@]}"; then
-          PR_NUMBER=$(gh pr list --repo "$TARGET_REPO" --head "$HEAD_SPEC" --json number --jq '.[0].number' || true)
+          PR_NUMBER=$(gh pr list --repo "$TARGET_REPO" --head "$HEAD_BRANCH" --json number --jq '.[0].number' || true)
           if [ -z "${PR_NUMBER:-}" ]; then
             echo "No existing PR found for head $HEAD_SPEC; aborting edit." >&2
             exit 1
