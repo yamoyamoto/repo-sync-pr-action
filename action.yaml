@@ -65,13 +65,23 @@ runs:
 
     - name: Push to Target Repository
       shell: bash
+      env:
+        PR_BASE_BRANCH: ${{ inputs.pr_base_branch }}
       run: |
         set -euo pipefail
         SOURCE_BRANCH="${SOURCE_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
         SYNC_BRANCH="sync/source-${SOURCE_BRANCH}"
         echo "::set-output name=sync_branch::${SYNC_BRANCH}"
 
-        git remote add target "https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.target_repo }}.git"
+        git remote add target "https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.target_repo }}.git" 2>/dev/null || true
+        git fetch target "${PR_BASE_BRANCH}:refs/remotes/target/${PR_BASE_BRANCH}" --prune --tags --force
+
+        # Establish a common ancestor with base if histories are unrelated
+        MERGE_BASE=$(git merge-base HEAD "refs/remotes/target/${PR_BASE_BRANCH}" || true)
+        if [ -z "${MERGE_BASE}" ]; then
+          git merge --no-edit --allow-unrelated-histories -s ours "refs/remotes/target/${PR_BASE_BRANCH}" -m "chore: establish common history with ${PR_BASE_BRANCH}"
+        fi
+
         git push target "${SOURCE_BRANCH}:${SYNC_BRANCH}" --force
       id: push
 
