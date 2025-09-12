@@ -89,22 +89,36 @@ runs:
         PR_LABEL: ${{ inputs.pr_label }}
         SYNC_BRANCH: ${{ steps.push.outputs.sync_branch }}
       run: |
-        gh_pr_up() {
-          local repo_arg="--repo $1"
-          shift
-          gh pr create $repo_arg "$@" || gh pr edit $repo_arg "$@"
-        }
+        set -euo pipefail
 
-        declare -a pr_args
-        pr_args+=(--base "$PR_BASE_BRANCH")
-        pr_args+=(--head "$SYNC_BRANCH")
-        pr_args+=(--title "$PR_TITLE")
-        pr_args+=(--body "$PR_BODY")
+        # Build args for creation (supports --head/--label/--assignee)
+        declare -a pr_create_args
+        pr_create_args+=(--base "$PR_BASE_BRANCH")
+        pr_create_args+=(--head "$SYNC_BRANCH")
+        pr_create_args+=(--title "$PR_TITLE")
+        pr_create_args+=(--body "$PR_BODY")
         if [ -n "$PR_ASSIGNEE" ]; then
-          pr_args+=(--assignee "$PR_ASSIGNEE")
+          pr_create_args+=(--assignee "$PR_ASSIGNEE")
         fi
         if [ -n "$PR_LABEL" ]; then
-          pr_args+=(--label "$PR_LABEL")
+          pr_create_args+=(--label "$PR_LABEL")
         fi
 
-        gh_pr_up "$TARGET_REPO" "${pr_args[@]}"
+        # Build args for edit (no --head; labels/assignees use add-*)
+        declare -a pr_edit_args
+        pr_edit_args+=(--title "$PR_TITLE")
+        pr_edit_args+=(--body "$PR_BODY")
+        if [ -n "$PR_BASE_BRANCH" ]; then
+          pr_edit_args+=(--base "$PR_BASE_BRANCH")
+        fi
+        if [ -n "$PR_ASSIGNEE" ]; then
+          pr_edit_args+=(--add-assignee "$PR_ASSIGNEE")
+        fi
+        if [ -n "$PR_LABEL" ]; then
+          pr_edit_args+=(--add-label "$PR_LABEL")
+        fi
+
+        # Try create, then edit if it already exists
+        if ! gh pr create --repo "$TARGET_REPO" "${pr_create_args[@]}"; then
+          gh pr edit --repo "$TARGET_REPO" "${pr_edit_args[@]}"
+        fi
