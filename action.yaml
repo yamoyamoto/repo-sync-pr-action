@@ -80,6 +80,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
+        GH_HOST: github.com
         TARGET_REPO: ${{ inputs.target_repo }}
         PR_TITLE: ${{ inputs.pr_title }}
         PR_BODY: ${{ inputs.pr_body }}
