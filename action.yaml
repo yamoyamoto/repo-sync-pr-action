@@ -14,6 +14,10 @@ inputs:
     description: "Skip internal checkout and use current working directory."
     required: false
     default: "false"
+  push_tags:
+    description: "Also push all tags to the target repository."
+    required: false
+    default: "false"
   pr_base_branch:
     description: "The base branch for the pull request in the target repository."
     required: false
@@ -42,6 +46,7 @@ runs:
       with:
         fetch-depth: 0
         persist-credentials: false
+        fetch-tags: true
 
     - name: Setup Git
       shell: bash
@@ -74,6 +79,9 @@ runs:
         echo "::set-output name=sync_branch::${SYNC_BRANCH}"
 
         git remote add target "https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.target_repo }}.git" 2>/dev/null || true
+        if git remote get-url origin >/dev/null 2>&1; then
+          git fetch origin --tags --force --prune
+        fi
         git fetch target "${PR_BASE_BRANCH}:refs/remotes/target/${PR_BASE_BRANCH}" --prune --tags --force
 
         # Establish a common ancestor with base if histories are unrelated
@@ -83,6 +91,9 @@ runs:
         fi
 
         git push target "${SOURCE_BRANCH}:${SYNC_BRANCH}" --force
+        if [ "${{ inputs.push_tags }}" = "true" ]; then
+          git push target --tags
+        fi
       id: push
 
     - name: Create or Update Pull Request
