@@ -1,0 +1,103 @@
+# action.yml
+name: "Cross-Repository Pull Request"
+description: "Syncs commits from a source repository and creates/updates a pull request in a target repository, preserving full commit history."
+author: "yamoyamoto"
+
+inputs:
+  target_repo:
+    description: 'The target repository to create the pull request in (e.g., "owner/repo").'
+    required: true
+  token:
+    description: "A GitHub token with repo and workflow scopes for the target repository."
+    required: true
+  pr_base_branch:
+    description: "The base branch for the pull request in the target repository."
+    required: false
+    default: "main"
+  pr_title:
+    description: "The title of the pull request."
+    required: false
+    default: "Sync: Update from source repository"
+  pr_body:
+    description: "The body of the pull request."
+    required: false
+    default: "This PR is auto-generated and contains the latest commits from the source repository."
+  pr_assignee:
+    description: "The assignee for the pull request."
+    required: false
+  pr_label:
+    description: "Labels to add to the pull request (comma-separated)."
+    required: false
+    default: "sync, automated"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Setup Git
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        login=$(gh api user -q .login)
+        id=$(gh api user -q .id)
+        name=$(gh api user -q .name)
+        if [ -z "$login" ] || [ "$login" = "null" ] || [ -z "$id" ] || [ "$id" = "null" ]; then
+          echo "Failed to fetch GitHub user info from GH_TOKEN" >&2
+          exit 1
+        fi
+        if [ -z "$name" ] || [ "$name" = "null" ]; then
+          name="$login"
+        fi
+        git config user.name "$name"
+        git config user.email "${id}+${login}@users.noreply.github.com"
+
+    - name: Push to Target Repository
+      shell: bash
+      env:
+        SOURCE_BRANCH: ${{ github.ref_name }}
+      run: |
+        SYNC_BRANCH="sync/source-${SOURCE_BRANCH}"
+        echo "::set-output name=sync_branch::${SYNC_BRANCH}"
+
+        git remote add target "https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.target_repo }}.git"
+        git push target "${SOURCE_BRANCH}:${SYNC_BRANCH}" --force
+      id: push
+
+    - name: Create or Update Pull Request
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        TARGET_REPO: ${{ inputs.target_repo }}
+        PR_TITLE: ${{ inputs.pr_title }}
+        PR_BODY: ${{ inputs.pr_body }}
+        PR_BASE_BRANCH: ${{ inputs.pr_base_branch }}
+        PR_ASSIGNEE: ${{ inputs.pr_assignee }}
+        PR_LABEL: ${{ inputs.pr_label }}
+        SYNC_BRANCH: ${{ steps.push.outputs.sync_branch }}
+      run: |
+        gh_pr_up() {
+          local repo_arg="--repo $1"
+          shift
+          gh pr create $repo_arg "$@" || gh pr edit $repo_arg "$@"
+        }
+
+        declare -a pr_args
+        pr_args+=(--base "$PR_BASE_BRANCH")
+        pr_args+=(--head "$SYNC_BRANCH")
+        pr_args+=(--title "$PR_TITLE")
+        pr_args+=(--body "$PR_BODY")
+        if [ -n "$PR_ASSIGNEE" ]; then
+          pr_args+=(--assignee "$PR_ASSIGNEE")
+        fi
+        if [ -n "$PR_LABEL" ]; then
+          pr_args+=(--label "$PR_LABEL")
+        fi
+
+        gh_pr_up "$TARGET_REPO" "${pr_args[@]}"
