@@ -48,6 +48,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
+        GH_HOST: github.com
       run: |
         set -euo pipefail
         login=$(gh api user -q .login)
