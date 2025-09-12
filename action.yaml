@@ -91,10 +91,12 @@ runs:
       run: |
         set -euo pipefail
 
+        TARGET_OWNER="${TARGET_REPO%%/*}"
+
         # Build args for creation (supports --head/--label/--assignee)
         declare -a pr_create_args
         pr_create_args+=(--base "$PR_BASE_BRANCH")
-        pr_create_args+=(--head "$SYNC_BRANCH")
+        pr_create_args+=(--head "$TARGET_OWNER:$SYNC_BRANCH")
         pr_create_args+=(--title "$PR_TITLE")
         pr_create_args+=(--body "$PR_BODY")
         if [ -n "$PR_ASSIGNEE" ]; then
