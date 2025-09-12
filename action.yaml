@@ -79,9 +79,6 @@ runs:
         echo "::set-output name=sync_branch::${SYNC_BRANCH}"
 
         git remote add target "https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.target_repo }}.git" 2>/dev/null || true
-        if git remote get-url origin >/dev/null 2>&1; then
-          git fetch origin --tags --force --prune
-        fi
         git fetch target "${PR_BASE_BRANCH}:refs/remotes/target/${PR_BASE_BRANCH}" --prune --tags --force
 
         # Establish a common ancestor with base if histories are unrelated
