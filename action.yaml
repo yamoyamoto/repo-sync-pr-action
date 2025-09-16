@@ -93,7 +93,7 @@ runs:
         set -euo pipefail
         SOURCE_BRANCH="${SOURCE_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
         SYNC_BRANCH="sync/source-${SOURCE_BRANCH}"
-        echo "::set-output name=sync_branch::${SYNC_BRANCH}"
+        echo "sync_branch=${SYNC_BRANCH}" >> "$GITHUB_OUTPUT"
 
         git remote add target "https://x-access-token:${{ inputs.token }}@github.com/${{ inputs.target_repo }}.git" 2>/dev/null || true
         git fetch target "${PR_BASE_BRANCH}:refs/remotes/target/${PR_BASE_BRANCH}" --prune --tags --force
