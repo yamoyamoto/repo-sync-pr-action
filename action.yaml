@@ -55,18 +55,35 @@ runs:
         GH_HOST: github.com
       run: |
         set -euo pipefail
-        login=$(gh api user -q .login)
-        id=$(gh api user -q .id)
-        name=$(gh api user -q .name)
-        if [ -z "$login" ] || [ "$login" = "null" ] || [ -z "$id" ] || [ "$id" = "null" ]; then
-          echo "Failed to fetch GitHub user info from GH_TOKEN" >&2
-          exit 1
-        fi
-        if [ -z "$name" ] || [ "$name" = "null" ]; then
-          name="$login"
+        # Detect token type via API: PAT/GITHUB_TOKEN can call /user; App installation token cannot
+        if gh api user >/dev/null 2>&1; then
+          login=$(gh api user -q .login)
+          id=$(gh api user -q .id)
+          name=$(gh api user -q .name)
+          if [ -z "$name" ] || [ "$name" = "null" ]; then
+            name="$login"
+          fi
+          email="${id}+${login}@users.noreply.github.com"
+        else
+          # Installation token path: try to resolve app_slug from /installation; fallback to github-actions[bot]
+          app_slug=$(gh api /installation -q .app_slug 2>/dev/null || true)
+          if [ -n "${app_slug:-}" ] && [ "${app_slug}" != "null" ]; then
+            login="${app_slug}[bot]"
+            id=$(gh api "users/${login}" -q .id 2>/dev/null || echo "")
+            name="$login"
+            if [ -n "$id" ]; then
+              email="${id}+${login}@users.noreply.github.com"
+            else
+              # Unknown id; still use noreply without id
+              email="${login}@users.noreply.github.com"
+            fi
+          else
+            echo "Failed to resolve bot identity: /user not accessible and /installation returned no app_slug" >&2
+            exit 1
+          fi
         fi
         git config user.name "$name"
-        git config user.email "${id}+${login}@users.noreply.github.com"
+        git config user.email "$email"
 
     - name: Push to Target Repository
       shell: bash
